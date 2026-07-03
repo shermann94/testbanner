@@ -499,8 +499,12 @@ function App() {
             <h3 className="control-group-title">Elements</h3>
 
             <div className="toggle-row">
-              <span className="toggle-label">Show first row</span>
-              <Switch checked={showFirstRow} onChange={setShowFirstRow} label="Show first row" />
+              <span className="toggle-label">Show business logo and name</span>
+              <Switch
+                checked={showFirstRow}
+                onChange={setShowFirstRow}
+                label="Show business logo and name"
+              />
             </div>
 
             <div className="toggle-row">
