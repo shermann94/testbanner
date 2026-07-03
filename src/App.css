@@ -138,6 +138,9 @@
   line-height: 1.3;
   font-weight: 600;
   color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .row-3 {
@@ -228,6 +231,7 @@
 .bottom-sheet {
   position: relative;
   z-index: 2;
+  margin-top: 24px;
   min-height: 160px;
   background: #fff;
   border-radius: 16px 16px 0 0;

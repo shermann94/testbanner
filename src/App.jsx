@@ -1,7 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import './App.css'
 
-const HEADLINE_MAX_LENGTH = 24
 const DEFAULT_BG_COLOR = '#FF2674'
 const DEFAULT_BG_GRADIENT = 'linear-gradient(180deg, #FF2674 55.28%, #FF6FA3 100%)'
 
@@ -54,11 +53,6 @@ const PRESETS = [
     },
   },
 ]
-
-function truncate(text, maxLength) {
-  if (text.length <= maxLength) return text
-  return `${text.slice(0, maxLength - 1).trimEnd()}…`
-}
 
 function ChevronIcon() {
   return (
@@ -167,10 +161,8 @@ function App() {
   const rowHeadlineRef = useRef(null)
   const subtitleRef = useRef(null)
   const subtitleMeasureRef = useRef(null)
-  const imagePlaceholderRef = useRef(null)
   const bottomSheetRef = useRef(null)
   const [gapMarks, setGapMarks] = useState([])
-  const [sheetGap, setSheetGap] = useState(24)
 
   const pageStyle = { background, width: `${DEVICE_WIDTHS[widthIndex].width}px` }
   const swatchValue = HEX_COLOR_RE.test(background) ? background : DEFAULT_BG_COLOR
@@ -240,24 +232,6 @@ function App() {
     e.target.value = ''
   }
 
-  // Keep the bottom sheet's top flush with the image block's bottom edge, since the
-  // image is absolutely positioned and doesn't contribute to normal document flow.
-  useLayoutEffect(() => {
-    if (!pageRef.current || !imagePlaceholderRef.current || !subtitleRef.current) return undefined
-
-    const measureSheetGap = () => {
-      const imageBottom = imagePlaceholderRef.current.getBoundingClientRect().bottom
-      const subtitleBottom = subtitleRef.current.getBoundingClientRect().bottom
-      setSheetGap(Math.max(0, imageBottom - subtitleBottom))
-    }
-
-    measureSheetGap()
-
-    const observer = new ResizeObserver(measureSheetGap)
-    observer.observe(pageRef.current)
-    return () => observer.disconnect()
-  }, [showFirstRow, showChevron, showStatusBar, subtitleTwoLines, headline, subtitle, brandName, widthIndex])
-
   useLayoutEffect(() => {
     if (!showMeasurements || !pageRef.current) {
       setGapMarks([])
@@ -279,7 +253,7 @@ function App() {
 
       addGap('gap-row1-row2', rowBrandRef.current, rowHeadlineRef.current, '8')
       addGap('gap-row2-row3', rowHeadlineRef.current, subtitleRef.current, '4')
-      addGap('gap-sheet', subtitleRef.current, bottomSheetRef.current, Math.round(sheetGap).toString())
+      addGap('gap-sheet', subtitleRef.current, bottomSheetRef.current, '24')
 
       setGapMarks(marks)
     }
@@ -299,7 +273,6 @@ function App() {
     subtitle,
     brandName,
     widthIndex,
-    sheetGap,
   ])
 
   return (
@@ -323,7 +296,7 @@ function App() {
             )}
 
             <div className="row row-headline" ref={rowHeadlineRef}>
-              <p className="headline">{truncate(headline, HEADLINE_MAX_LENGTH)}</p>
+              <p className="headline">{headline}</p>
             </div>
 
             <div className="row-3">
@@ -349,7 +322,7 @@ function App() {
                   <span className="measure-tag measure-tag-icon-gap">8</span>
                 )}
               </div>
-              <div className="image-placeholder" ref={imagePlaceholderRef}>
+              <div className="image-placeholder">
                 {uploadedImage ? (
                   <img src={uploadedImage} alt="" className="image-placeholder-img" />
                 ) : (
@@ -376,11 +349,7 @@ function App() {
             )}
           </div>
 
-          <div
-            className="bottom-sheet"
-            ref={bottomSheetRef}
-            style={{ marginTop: `${sheetGap}px` }}
-          />
+          <div className="bottom-sheet" ref={bottomSheetRef} />
 
           {showMeasurements &&
             gapMarks.map((g) => (
@@ -431,17 +400,11 @@ function App() {
             </label>
 
             <label className="field">
-              <span className="field-label">
-                <span>Headline</span>
-                <span className="field-hint">
-                  {headline.length}/{HEADLINE_MAX_LENGTH}
-                </span>
-              </span>
+              <span className="field-label">Headline</span>
               <input
                 type="text"
                 className="field-input"
                 value={headline}
-                maxLength={HEADLINE_MAX_LENGTH}
                 onChange={(e) => setHeadline(e.target.value)}
               />
             </label>
