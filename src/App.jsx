@@ -143,9 +143,7 @@ function Switch({ checked, onChange, label }) {
 function App() {
   const [brandName, setBrandName] = useState('Business Name Text')
   const [headline, setHeadline] = useState('Get 2GB free data today')
-  const [subtitle, setSubtitle] = useState(
-    'Limited time offer available for new and existing customers only',
-  )
+  const [subtitle, setSubtitle] = useState('Limited time offer')
   const [showFirstRow, setShowFirstRow] = useState(true)
   const [showChevron, setShowChevron] = useState(true)
   const [background, setBackground] = useState(DEFAULT_BG_GRADIENT)
@@ -209,6 +207,25 @@ function App() {
     if (trimmed !== subtitle) setSubtitle(trimmed)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [subtitleTwoLines, widthIndex])
+
+  // The check above can run before the Public Sans web font finishes loading, measuring
+  // against the fallback font instead. Re-run it once fonts are actually ready so the
+  // real glyph widths are used (this is what causes 3 lines to slip through in prod).
+  useEffect(() => {
+    if (!document.fonts?.ready) return
+    document.fonts.ready.then(() => {
+      setSubtitle((current) => {
+        const maxLines = subtitleTwoLines ? 2 : 1
+        if (subtitleFits(current, maxLines)) return current
+        let trimmed = current
+        while (trimmed.length > 0 && !subtitleFits(trimmed, maxLines)) {
+          trimmed = trimmed.slice(0, -1)
+        }
+        return trimmed
+      })
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const switchState = { subtitleTwoLines, showFirstRow, showChevron, showStatusBar, showMeasurements }
   const activePreset = PRESETS.find((preset) =>
