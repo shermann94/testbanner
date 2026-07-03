@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useLayoutEffect, useRef, useState } from 'react'
 import './App.css'
 
 const DEFAULT_BG_COLOR = '#FF2674'
@@ -155,77 +155,15 @@ function App() {
 
   const fileInputRef = useRef(null)
   const pageRef = useRef(null)
+  const topBarRef = useRef(null)
   const rowBrandRef = useRef(null)
   const rowHeadlineRef = useRef(null)
   const subtitleRef = useRef(null)
-  const subtitleMeasureRef = useRef(null)
   const bottomSheetRef = useRef(null)
   const [gapMarks, setGapMarks] = useState([])
 
   const pageStyle = { background, width: `${DEVICE_WIDTHS[widthIndex].width}px` }
   const swatchValue = HEX_COLOR_RE.test(background) ? background : DEFAULT_BG_COLOR
-
-  // Checks whether `text` fits within `maxLines` at the subtitle's current rendered width.
-  const subtitleFits = (text, maxLines) => {
-    const measurer = subtitleMeasureRef.current
-    const real = subtitleRef.current
-    if (!measurer || !real) return true
-    const width = real.getBoundingClientRect().width
-    if (width === 0) return true
-    measurer.style.width = `${width}px`
-    measurer.textContent = text
-    const lineHeight = parseFloat(getComputedStyle(real).lineHeight)
-    return measurer.scrollHeight <= lineHeight * maxLines + 1
-  }
-
-  const handleSubtitleChange = (e) => {
-    const value = e.target.value
-    const maxLines = subtitleTwoLines ? 2 : 1
-    if (value.length <= subtitle.length || subtitleFits(value, maxLines)) {
-      setSubtitle(value)
-    } else {
-      // Reject the keystroke: React won't re-render (state is unchanged), so the
-      // DOM input must be reset back to the last accepted value by hand. Resetting
-      // .value also resets the caret, so restore it to where the user was typing.
-      const inserted = value.length - subtitle.length
-      const caretAfter = e.target.selectionStart ?? value.length
-      e.target.value = subtitle
-      const restored = Math.max(0, Math.min(caretAfter - inserted, subtitle.length))
-      e.target.setSelectionRange(restored, restored)
-    }
-  }
-
-  // If toggling line count (or a width change) leaves existing text too long
-  // for the new capacity, trim it down rather than ever letting it truncate visually.
-  useEffect(() => {
-    const maxLines = subtitleTwoLines ? 2 : 1
-    if (subtitleFits(subtitle, maxLines)) return
-    let trimmed = subtitle
-    while (trimmed.length > 0 && !subtitleFits(trimmed, maxLines)) {
-      trimmed = trimmed.slice(0, -1)
-    }
-    if (trimmed !== subtitle) setSubtitle(trimmed)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [subtitleTwoLines, widthIndex])
-
-  // The check above can run before the Public Sans web font finishes loading, measuring
-  // against the fallback font instead. Re-run it once fonts are actually ready so the
-  // real glyph widths are used (this is what causes 3 lines to slip through in prod).
-  useEffect(() => {
-    if (!document.fonts?.ready) return
-    document.fonts.ready.then(() => {
-      setSubtitle((current) => {
-        const maxLines = subtitleTwoLines ? 2 : 1
-        if (subtitleFits(current, maxLines)) return current
-        let trimmed = current
-        while (trimmed.length > 0 && !subtitleFits(trimmed, maxLines)) {
-          trimmed = trimmed.slice(0, -1)
-        }
-        return trimmed
-      })
-    })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
 
   const switchState = { subtitleTwoLines, showFirstRow, showChevron, showStatusBar, showMeasurements }
   const activePreset = PRESETS.find((preset) =>
@@ -268,6 +206,8 @@ function App() {
         if (height > 0.5) marks.push({ key, top, height, label })
       }
 
+      const nextRowEl = showFirstRow ? rowBrandRef.current : rowHeadlineRef.current
+      addGap('gap-topbar-row', topBarRef.current, nextRowEl, '4')
       addGap('gap-row1-row2', rowBrandRef.current, rowHeadlineRef.current, '8')
       addGap('gap-row2-row3', rowHeadlineRef.current, subtitleRef.current, '4')
       addGap('gap-sheet', subtitleRef.current, bottomSheetRef.current, '24')
@@ -302,6 +242,31 @@ function App() {
         >
           {showStatusBar && <StatusBar />}
           <div className="content">
+            <div className="top-bar" ref={topBarRef}>
+              {showMeasurements && <span className="measure-tag measure-tag-topbar">56</span>}
+              <div className="top-bar-col1">
+                <div className="icon-placeholder-32" aria-hidden="true">
+                  {showMeasurements && <span className="measure-tag">32×32</span>}
+                </div>
+              </div>
+              <div className="top-bar-col2">
+                <div className="icon-placeholder-32" aria-hidden="true">
+                  {showMeasurements && <span className="measure-tag">32×32</span>}
+                </div>
+                {showMeasurements && (
+                  <span className="measure-tag measure-tag-spacing measure-tag-col2-gap">12</span>
+                )}
+                <button type="button" className="logout-capsule">
+                  LOG OUT
+                  {showMeasurements && (
+                    <span className="measure-tag measure-tag-spacing measure-tag-logout-margin">
+                      8
+                    </span>
+                  )}
+                </button>
+              </div>
+            </div>
+
             {showFirstRow && (
               <div className="row row-brand" ref={rowBrandRef}>
                 <div className="avatar" aria-hidden="true">
@@ -318,26 +283,31 @@ function App() {
 
             <div className="row-3">
               <div className="subtitle-wrap">
-                <p className="subtitle" ref={subtitleRef}>
-                  {subtitle}
-                </p>
-                <p
-                  className="subtitle subtitle-measurer"
-                  ref={subtitleMeasureRef}
-                  aria-hidden="true"
-                />
+                <div className="subtitle-inner" ref={subtitleRef}>
+                  <div className="subtitle-row">
+                    <p
+                      className="subtitle"
+                      style={{
+                        WebkitLineClamp: subtitleTwoLines ? 2 : 1,
+                        lineClamp: subtitleTwoLines ? 2 : 1,
+                      }}
+                    >
+                      {subtitle}
+                    </p>
 
-                {showChevron && (
-                  <button type="button" className="icon-badge" aria-label="View more">
-                    <ChevronIcon />
-                    {showMeasurements && (
-                      <span className="measure-tag measure-tag-above">32×24</span>
+                    {showChevron && (
+                      <button type="button" className="icon-badge" aria-label="View more">
+                        <ChevronIcon />
+                        {showMeasurements && (
+                          <span className="measure-tag measure-tag-above">28×24</span>
+                        )}
+                      </button>
                     )}
-                  </button>
-                )}
-                {showMeasurements && (
-                  <span className="measure-tag measure-tag-icon-gap">8</span>
-                )}
+                    {showMeasurements && (
+                      <span className="measure-tag measure-tag-icon-gap">8</span>
+                    )}
+                  </div>
+                </div>
               </div>
               <div className="image-placeholder">
                 {uploadedImage ? (
@@ -353,9 +323,6 @@ function App() {
 
             {showMeasurements && (
               <>
-                <div className="measure-pad measure-pad-top">
-                  <span>8</span>
-                </div>
                 <div className="measure-pad measure-pad-left">
                   <span>16</span>
                 </div>
@@ -432,7 +399,7 @@ function App() {
                 type="text"
                 className="field-input"
                 value={subtitle}
-                onChange={handleSubtitleChange}
+                onChange={(e) => setSubtitle(e.target.value)}
               />
             </label>
 
