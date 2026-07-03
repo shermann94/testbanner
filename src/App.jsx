@@ -34,7 +34,7 @@ const PRESETS = [
     id: 'greeting-banner',
     label: 'Greeting Banner',
     values: {
-      subtitleTwoLines: true,
+      subtitleTwoLines: false,
       showFirstRow: false,
       showChevron: false,
       showStatusBar: true,
