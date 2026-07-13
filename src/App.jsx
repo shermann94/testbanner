@@ -1,5 +1,45 @@
-import { useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import './App.css'
+
+// Measures whether `text` would fit within `maxLines` at the real element's current
+// rendered width, using a hidden clone element with identical font metrics.
+function checkFits(measurerEl, realEl, text, maxLines) {
+  if (!measurerEl || !realEl) return true
+  const width = realEl.getBoundingClientRect().width
+  if (width === 0) return true
+  measurerEl.style.width = `${width}px`
+  measurerEl.textContent = text
+  const lineHeight = parseFloat(getComputedStyle(realEl).lineHeight)
+  return measurerEl.scrollHeight <= lineHeight * maxLines + 1
+}
+
+// Trims `text` down to the longest prefix that still fits within `maxLines`.
+function trimToFit(measurerEl, realEl, text, maxLines) {
+  if (checkFits(measurerEl, realEl, text, maxLines)) return text
+  let trimmed = text
+  while (trimmed.length > 0 && !checkFits(measurerEl, realEl, trimmed, maxLines)) {
+    trimmed = trimmed.slice(0, -1)
+  }
+  return trimmed
+}
+
+// Builds a controlled-input onChange handler that rejects keystrokes which would push
+// the text past `maxLines`, restoring the DOM value and caret since React won't
+// re-render (and thus won't reset the input) when the state doesn't change.
+function makeLineCapHandler(measurerRef, realRef, currentValue, setValue, maxLines) {
+  return (e) => {
+    const value = e.target.value
+    if (value.length <= currentValue.length || checkFits(measurerRef.current, realRef.current, value, maxLines)) {
+      setValue(value)
+    } else {
+      const inserted = value.length - currentValue.length
+      const caretAfter = e.target.selectionStart ?? value.length
+      e.target.value = currentValue
+      const restored = Math.max(0, Math.min(caretAfter - inserted, currentValue.length))
+      e.target.setSelectionRange(restored, restored)
+    }
+  }
+}
 
 const DEFAULT_BG_COLOR = '#FF2674'
 const DEFAULT_BG_GRADIENT = 'linear-gradient(180deg, #FF2674 55.28%, #FF6FA3 100%)'
@@ -162,6 +202,11 @@ function App() {
   const bottomSheetRef = useRef(null)
   const [gapMarks, setGapMarks] = useState([])
 
+  const headlineTextRef = useRef(null)
+  const headlineMeasureRef = useRef(null)
+  const subtitleTextRef = useRef(null)
+  const subtitleMeasureRef = useRef(null)
+
   const pageStyle = { background, width: `${DEVICE_WIDTHS[widthIndex].width}px` }
   const swatchValue = HEX_COLOR_RE.test(background) ? background : DEFAULT_BG_COLOR
 
@@ -186,6 +231,54 @@ function App() {
     reader.readAsDataURL(file)
     e.target.value = ''
   }
+
+  const handleHeadlineChange = makeLineCapHandler(
+    headlineMeasureRef,
+    headlineTextRef,
+    headline,
+    setHeadline,
+    1,
+  )
+  const handleSubtitleChange = makeLineCapHandler(
+    subtitleMeasureRef,
+    subtitleTextRef,
+    subtitle,
+    setSubtitle,
+    subtitleTwoLines ? 2 : 1,
+  )
+
+  // If a width/mode change leaves existing text too long for its capacity, trim it
+  // down rather than ever letting it visually truncate.
+  useEffect(() => {
+    setHeadline((current) => trimToFit(headlineMeasureRef.current, headlineTextRef.current, current, 1))
+  }, [widthIndex])
+
+  useEffect(() => {
+    setSubtitle((current) =>
+      trimToFit(subtitleMeasureRef.current, subtitleTextRef.current, current, subtitleTwoLines ? 2 : 1),
+    )
+  }, [subtitleTwoLines, widthIndex])
+
+  // The checks above can run before the Public Sans web font finishes loading,
+  // measuring against the fallback font instead. Re-run once fonts are actually
+  // ready so real glyph widths are used.
+  useEffect(() => {
+    if (!document.fonts?.ready) return
+    document.fonts.ready.then(() => {
+      setHeadline((current) =>
+        trimToFit(headlineMeasureRef.current, headlineTextRef.current, current, 1),
+      )
+      setSubtitle((current) =>
+        trimToFit(
+          subtitleMeasureRef.current,
+          subtitleTextRef.current,
+          current,
+          subtitleTwoLines ? 2 : 1,
+        ),
+      )
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   useLayoutEffect(() => {
     if (!showMeasurements || !pageRef.current) {
@@ -278,22 +371,24 @@ function App() {
             )}
 
             <div className="row row-headline" ref={rowHeadlineRef}>
-              <p className="headline">{headline}</p>
+              <p className="headline" ref={headlineTextRef}>
+                {headline}
+              </p>
+              <p className="headline headline-measurer" ref={headlineMeasureRef} aria-hidden="true" />
             </div>
 
             <div className="row-3">
               <div className="subtitle-wrap">
                 <div className="subtitle-inner" ref={subtitleRef}>
                   <div className="subtitle-row">
-                    <p
-                      className="subtitle"
-                      style={{
-                        WebkitLineClamp: subtitleTwoLines ? 2 : 1,
-                        lineClamp: subtitleTwoLines ? 2 : 1,
-                      }}
-                    >
+                    <p className="subtitle" ref={subtitleTextRef}>
                       {subtitle}
                     </p>
+                    <p
+                      className="subtitle subtitle-measurer"
+                      ref={subtitleMeasureRef}
+                      aria-hidden="true"
+                    />
 
                     {showChevron && (
                       <button type="button" className="icon-badge" aria-label="View more">
@@ -389,7 +484,7 @@ function App() {
                 type="text"
                 className="field-input"
                 value={headline}
-                onChange={(e) => setHeadline(e.target.value)}
+                onChange={handleHeadlineChange}
               />
             </label>
 
@@ -399,7 +494,7 @@ function App() {
                 type="text"
                 className="field-input"
                 value={subtitle}
-                onChange={(e) => setSubtitle(e.target.value)}
+                onChange={handleSubtitleChange}
               />
             </label>
 
